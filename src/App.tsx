@@ -104,32 +104,32 @@ export default function App() {
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-cyan-500 selection:text-slate-950">
       {/* Header */}
       <header className="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-md border-b border-slate-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20 text-white">
-              <Waves className="w-6 h-6" />
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2.5 sm:py-0 sm:h-16 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20 text-white shrink-0">
+              <Waves className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
-            <div>
-              <h1 className="text-base sm:text-lg font-black tracking-tight text-white flex items-center gap-2">
-                Tide Watch <span className="text-cyan-400 font-medium text-sm sm:text-base">by Ngan Nguyen</span>
-                <span className="text-[10px] uppercase font-bold text-emerald-300 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-700/50">
+            <div className="min-w-0">
+              <h1 className="text-sm sm:text-lg font-black tracking-tight text-white flex items-center gap-1.5 truncate">
+                Tide Watch <span className="text-cyan-400 font-medium text-xs sm:text-base">by Ngan Nguyen</span>
+                <span className="text-[9px] uppercase font-bold text-emerald-300 bg-emerald-950/80 px-1.5 py-0.5 rounded border border-emerald-700/50">
                   LIVE
                 </span>
               </h1>
-              <p className="text-[11px] text-slate-400">
-                Default: Custom Pin (36.909°, -76.096°) • Schedule future tide dates • Hover curve to see active fish
+              <p className="text-[10px] sm:text-[11px] text-slate-400 truncate">
+                Default: Custom Pin (36.909°, -76.096°) • Schedule future tides
               </p>
             </div>
           </div>
 
           {/* Preset quick jumps & refresh */}
-          <div className="flex items-center gap-2">
-            <div className="flex items-center bg-slate-800/90 rounded-xl border border-slate-700 px-3 py-1.5 shadow-inner text-xs">
-              <Compass className="w-4 h-4 text-cyan-400 mr-2 shrink-0" />
+          <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
+            <div className="flex items-center bg-slate-800/90 rounded-xl border border-slate-700 px-2.5 py-1.5 shadow-inner text-xs flex-1 sm:flex-initial min-w-0">
+              <Compass className="w-3.5 h-3.5 text-cyan-400 mr-1.5 shrink-0" />
               <select
                 aria-label="Preset Coastal Region"
                 onChange={(e) => handleSelectPresetRegion(e.target.value)}
-                className="bg-transparent text-xs font-semibold text-white focus:outline-none cursor-pointer"
+                className="bg-transparent text-xs font-semibold text-white focus:outline-none cursor-pointer w-full truncate"
                 defaultValue="va-beach"
               >
                 {COASTAL_REGIONS.map((r) => (
@@ -143,7 +143,7 @@ export default function App() {
             <button
               onClick={handleManualRefresh}
               title="Refresh telemetry"
-              className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors"
+              className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors shrink-0"
             >
               <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-cyan-400' : ''}`} />
             </button>
@@ -152,7 +152,7 @@ export default function App() {
       </header>
 
       {/* Main Content Area */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 space-y-6">
+      <main className="max-w-7xl w-full mx-auto px-2.5 sm:px-6 lg:px-8 py-4 sm:py-6 flex-1 space-y-4 sm:space-y-6 overflow-x-hidden">
         {/* 1. Live NOAA Tidal Station with Interactive 24-Hour Harmonic Curve (Moved to Top) */}
         <TideDashboardCard
           currentHeightFt={tideData.currentHeightFt}
