@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { setOptions, importLibrary } from '@googlemaps/js-api-loader';
 import { FishingHotspot } from '../types';
 import { LocationCoordinates } from '../marineCalculations';
@@ -251,9 +251,71 @@ export const FishingMap: React.FC<FishingMapProps> = ({
   const laserMarkerRef = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
   const heatmapLayerRef = useRef<any>(null);
 
-  const [mapType, setMapType] = useState<'hybrid' | 'roadmap' | 'terrain'>('hybrid');
+  const [mapType, setMapType] = useState<'hybrid' | 'roadmap' | 'terrain' | 'dark_hydro'>('hybrid');
   const [isMapLoaded, setIsMapLoaded] = useState<boolean>(false);
   const [isLocatingUser, setIsLocatingUser] = useState<boolean>(false);
+
+  // High-Contrast Dark Hydrographic Map Style for Night Navigation & Water Feature Clarity
+  const DARK_HYDROGRAPHIC_STYLE = useMemo(() => [
+    { elementType: 'geometry', stylers: [{ color: '#09101d' }] },
+    { elementType: 'labels.text.stroke', stylers: [{ color: '#09101d' }] },
+    { elementType: 'labels.text.fill', stylers: [{ color: '#8aa2b1' }] },
+    {
+      featureType: 'administrative.locality',
+      elementType: 'labels.text.fill',
+      stylers: [{ color: '#38bdf8' }]
+    },
+    {
+      featureType: 'poi',
+      elementType: 'labels.text.fill',
+      stylers: [{ color: '#38bdf8' }]
+    },
+    {
+      featureType: 'poi.park',
+      elementType: 'geometry',
+      stylers: [{ color: '#0f2922' }]
+    },
+    {
+      featureType: 'road',
+      elementType: 'geometry',
+      stylers: [{ color: '#1e293b' }]
+    },
+    {
+      featureType: 'road',
+      elementType: 'geometry.stroke',
+      stylers: [{ color: '#0f172a' }]
+    },
+    {
+      featureType: 'road',
+      elementType: 'labels.text.fill',
+      stylers: [{ color: '#94a3b8' }]
+    },
+    {
+      featureType: 'road.highway',
+      elementType: 'geometry',
+      stylers: [{ color: '#334155' }]
+    },
+    {
+      featureType: 'road.highway',
+      elementType: 'labels.text.fill',
+      stylers: [{ color: '#f39c12' }]
+    },
+    {
+      featureType: 'water',
+      elementType: 'geometry',
+      stylers: [{ color: '#001933' }]
+    },
+    {
+      featureType: 'water',
+      elementType: 'labels.text.fill',
+      stylers: [{ color: '#38bdf8' }]
+    },
+    {
+      featureType: 'water',
+      elementType: 'labels.text.stroke',
+      stylers: [{ color: '#020617' }]
+    }
+  ], []);
   
   // Patrol Density Heatmap State
   const [showHeatmap, setShowHeatmap] = useState<boolean>(true);
@@ -275,6 +337,8 @@ export const FishingMap: React.FC<FishingMapProps> = ({
   const [soundAlerts, setSoundAlerts] = useState<boolean>(true);
   const [selectedZoneInfo, setSelectedZoneInfo] = useState<PatrolRestrictedZone | null>(null);
   const [isHudExpanded, setIsHudExpanded] = useState<boolean>(true);
+  const [isRadarMinimized, setIsRadarMinimized] = useState<boolean>(false);
+  const [isHeatmapMinimized, setIsHeatmapMinimized] = useState<boolean>(false);
   const lastAlertZoneRef = useRef<string | null>(null);
 
   // Sync proximity toggle with localStorage
@@ -334,7 +398,18 @@ export const FishingMap: React.FC<FishingMapProps> = ({
     };
   })();
 
-  // Sound chime when entering warning perimeter
+  // Synchronize mapType changes (Satellite, Marine, Roads, Dark Hydro) with map instance
+  useEffect(() => {
+    if (!mapInstanceRef.current || !isMapLoaded) return;
+    const map = mapInstanceRef.current;
+    if (mapType === 'dark_hydro') {
+      map.setMapTypeId('roadmap');
+      map.setOptions({ styles: DARK_HYDROGRAPHIC_STYLE });
+    } else {
+      map.setMapTypeId(mapType as any);
+      map.setOptions({ styles: null });
+    }
+  }, [mapType, isMapLoaded, DARK_HYDROGRAPHIC_STYLE]);
   useEffect(() => {
     if (isApproachingZone && soundAlerts) {
       if (lastAlertZoneRef.current !== nearestZone.id) {
@@ -914,6 +989,30 @@ export const FishingMap: React.FC<FishingMapProps> = ({
             <span>GPS</span>
           </button>
 
+          {/* HUD Toggles */}
+          <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
+            <button
+              onClick={() => setIsRadarMinimized(!isRadarMinimized)}
+              className={`px-2 py-1 rounded-lg font-medium transition-all ${
+                !isRadarMinimized ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40' : 'text-slate-400 hover:text-white'
+              }`}
+              title="Toggle Proximity Radar HUD visibility"
+            >
+              {!isRadarMinimized ? 'Radar HUD: On' : 'Radar HUD: Off'}
+            </button>
+            {showHeatmap && (
+              <button
+                onClick={() => setIsHeatmapMinimized(!isHeatmapMinimized)}
+                className={`px-2 py-1 rounded-lg font-medium transition-all ${
+                  !isHeatmapMinimized ? 'bg-orange-500/20 text-orange-300 border border-orange-500/40' : 'text-slate-400 hover:text-white'
+                }`}
+                title="Toggle Patrol Heatmap HUD visibility"
+              >
+                {!isHeatmapMinimized ? 'Heatmap HUD: On' : 'Heatmap HUD: Off'}
+              </button>
+            )}
+          </div>
+
           {/* Map Layer Switcher */}
           <div className="flex bg-slate-950 p-0.5 rounded-lg border border-slate-800 text-xs shrink-0">
             <button
@@ -940,235 +1039,296 @@ export const FishingMap: React.FC<FishingMapProps> = ({
             >
               Roads
             </button>
+            <button
+              onClick={() => setMapType('dark_hydro')}
+              className={`px-2.5 py-1 rounded font-medium transition-colors ${
+                mapType === 'dark_hydro' ? 'bg-cyan-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'
+              }`}
+              title="High-Contrast Dark Hydrographic Style for Night Navigation & Water Feature Clarity"
+            >
+              Dark Hydro
+            </button>
           </div>
         </div>
       </div>
 
       {/* Map Canvas with Integrated HUD Overlays */}
-      <div className="mt-3 relative rounded-xl overflow-hidden border border-slate-800 min-h-[440px] sm:min-h-[520px] bg-slate-950">
-        <div ref={mapContainerRef} className="w-full h-full min-h-[440px] sm:min-h-[520px]" />
+      <div className="mt-3 relative rounded-xl overflow-hidden border border-slate-800 min-h-[520px] sm:min-h-[620px] h-[520px] sm:h-[620px] bg-slate-950">
+        <div ref={mapContainerRef} className="w-full h-full min-h-[520px] sm:min-h-[620px]" />
 
-        {/* FLOATING PROXIMITY RADAR HUD (Upper-Right Overlay on the Map) */}
-        <div className="absolute top-3 right-3 max-w-[340px] w-full bg-slate-950/95 backdrop-blur-md rounded-xl border border-amber-500/40 p-3 shadow-2xl text-xs space-y-2 z-20">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-            <div className="flex items-center gap-1.5 font-black text-white">
-              <ShieldAlert className="w-4 h-4 text-amber-400 animate-pulse" />
-              <span>Patrol Proximity Radar HUD</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => {
-                  setSoundAlerts(!soundAlerts);
-                  if (!soundAlerts) playProximityAlertSound();
-                }}
-                className={`p-1 rounded border text-[10px] ${
-                  soundAlerts ? 'bg-amber-950 text-amber-300 border-amber-500' : 'bg-slate-900 text-slate-500 border-slate-800'
-                }`}
-                title={soundAlerts ? 'Mute Chimes' : 'Enable Chimes'}
-              >
-                {soundAlerts ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
-              </button>
-              <button
-                onClick={() => setIsHudExpanded(!isHudExpanded)}
-                className="p-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300"
-              >
-                {isHudExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-              </button>
-            </div>
-          </div>
-
-          {/* Status Badge & Nearest Law Enforcement Zone */}
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <div className="text-[10px] uppercase font-bold text-slate-400">Nearest Law Enforcement Zone</div>
-              <div className="font-extrabold text-white text-xs mt-0.5">{nearestZone.name}</div>
-              <div className="text-[10px] text-blue-300">{nearestZone.agency}</div>
-            </div>
-            <div className="text-right shrink-0">
-              <div className={`text-sm font-black ${
-                isCriticalZone ? 'text-rose-400 animate-pulse' : isApproachingZone ? 'text-amber-300' : 'text-emerald-400'
-              }`}>
-                {nearestZone.distanceNM < 0.2 ? `${nearestZone.distanceFt} ft` : `${nearestZone.distanceNM.toFixed(2)} NM`}
-              </div>
-              <span className={`text-[9px] uppercase font-bold px-1.5 py-0.5 rounded border ${
-                isCriticalZone 
-                  ? 'bg-rose-950 text-rose-300 border-rose-600' 
-                  : isApproachingZone 
-                  ? 'bg-amber-950 text-amber-300 border-amber-600' 
-                  : 'bg-emerald-950 text-emerald-300 border-emerald-600'
-              }`}>
-                {isCriticalZone ? 'CRITICAL DISTANCE' : isApproachingZone ? 'CAUTION ZONE' : 'SAFE CLEAR'}
-              </span>
-            </div>
-          </div>
-
-          {/* Expanded HUD Controls & Quick Simulator */}
-          {isHudExpanded && (
-            <div className="space-y-2 pt-1 border-t border-slate-800/80">
-              <div className="bg-slate-900/90 p-2 rounded-lg border border-slate-800 text-[11px] text-slate-300 leading-snug">
-                <span className="font-bold text-amber-300">Active Rule: </span>
-                {nearestZone.restrictionRules}
-              </div>
-
-              {/* Threshold Selector & Simulator Buttons */}
-              <div className="flex items-center justify-between gap-1 pt-0.5">
-                <span className="text-[10px] font-bold text-slate-400">Radar Ring:</span>
-                <div className="flex gap-1">
-                  {[0.5, 1.0, 2.0].map((nm) => (
+        {/* Top-Right HUDs Container (Stacked vertically to prevent any overlap or collision) */}
+        <div className="absolute top-3 right-3 flex flex-col gap-2.5 z-20 items-end pointer-events-none w-full max-w-[340px]">
+          {/* PROXIMITY RADAR HUD OR MINIMIZED BADGE */}
+          <div className="pointer-events-auto w-full">
+            {!isRadarMinimized ? (
+              <div className="bg-slate-950/95 backdrop-blur-md rounded-xl border border-amber-500/40 p-3 shadow-2xl text-xs space-y-2">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                  <div className="flex items-center gap-1.5 font-black text-white">
+                    <ShieldAlert className="w-4 h-4 text-amber-400 animate-pulse" />
+                    <span>Patrol Proximity Radar HUD</span>
+                  </div>
+                  <div className="flex items-center gap-1">
                     <button
-                      key={nm}
-                      onClick={() => setProximityThresholdNM(nm)}
-                      className={`px-2 py-0.5 text-[10px] font-black rounded border transition-all ${
-                        proximityThresholdNM === nm
-                          ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-sm'
-                          : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+                      onClick={() => {
+                        setSoundAlerts(!soundAlerts);
+                        if (!soundAlerts) playProximityAlertSound();
+                      }}
+                      className={`p-1 rounded border text-[10px] ${
+                        soundAlerts ? 'bg-amber-950 text-amber-300 border-amber-500' : 'bg-slate-900 text-slate-500 border-slate-800'
                       }`}
+                      title={soundAlerts ? 'Mute Chimes' : 'Enable Chimes'}
                     >
-                      {nm} NM
+                      {soundAlerts ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
                     </button>
-                  ))}
+                    <button
+                      onClick={() => setIsHudExpanded(!isHudExpanded)}
+                      className="p-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300"
+                      title="Collapse Details"
+                    >
+                      {isHudExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                    </button>
+                    <button
+                      onClick={() => setIsRadarMinimized(true)}
+                      className="p-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-[10px] font-bold px-1.5"
+                      title="Minimize Radar HUD to corner badge"
+                    >
+                      Minimize
+                    </button>
+                  </div>
                 </div>
-              </div>
 
-              {/* Quick Fly-To Simulator Dropdown */}
-              <div className="flex items-center gap-1.5 pt-0.5">
-                <span className="text-[10px] font-bold text-slate-400 shrink-0">Test GPS:</span>
-                <select
-                  onChange={(e) => handleSimulateFlyTo(e.target.value)}
-                  className="w-full bg-slate-900 text-[10px] font-bold text-cyan-300 p-1 rounded border border-slate-700 focus:outline-none focus:border-amber-400 cursor-pointer"
-                  defaultValue=""
-                >
-                  <option value="" disabled>Fly Boat to Location...</option>
-                  <option value="lesner">Lesner Bridge (0.0 NM - Warning)</option>
-                  <option value="cbbt">CBBT 1st Island (0.0 NM - Security)</option>
-                  <option value="rudee">Rudee Inlet (0.0 NM - No-Wake)</option>
-                  <option value="broad_bay">Broad Bay Canal (0.0 NM)</option>
-                  <option value="offshore">Offshore Waters (5.5 NM - Safe)</option>
-                </select>
+                {/* Status Badge & Nearest Law Enforcement Zone */}
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="text-[10px] uppercase font-bold text-slate-400">Nearest Law Enforcement Zone</div>
+                    <div className="font-extrabold text-white text-xs mt-0.5">{nearestZone.name}</div>
+                    <div className="text-[10px] text-blue-300">{nearestZone.agency}</div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className={`text-sm font-black ${
+                      isCriticalZone ? 'text-rose-400 animate-pulse' : isApproachingZone ? 'text-amber-300' : 'text-emerald-400'
+                    }`}>
+                      {nearestZone.distanceNM < 0.2 ? `${nearestZone.distanceFt} ft` : `${nearestZone.distanceNM.toFixed(2)} NM`}
+                    </div>
+                    <span className={`text-[9px] uppercase font-bold px-1.5 py-0.5 rounded border ${
+                      isCriticalZone 
+                        ? 'bg-rose-950 text-rose-300 border-rose-600' 
+                        : isApproachingZone 
+                        ? 'bg-amber-950 text-amber-300 border-amber-600' 
+                        : 'bg-emerald-950 text-emerald-300 border-emerald-600'
+                    }`}>
+                      {isCriticalZone ? 'CRITICAL DISTANCE' : isApproachingZone ? 'CAUTION ZONE' : 'SAFE CLEAR'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Expanded HUD Controls & Quick Simulator */}
+                {isHudExpanded && (
+                  <div className="space-y-2 pt-1 border-t border-slate-800/80">
+                    <div className="bg-slate-900/90 p-2 rounded-lg border border-slate-800 text-[11px] text-slate-300 leading-snug">
+                      <span className="font-bold text-amber-300">Active Rule: </span>
+                      {nearestZone.restrictionRules}
+                    </div>
+
+                    {/* Threshold Selector & Simulator Buttons */}
+                    <div className="flex items-center justify-between gap-1 pt-0.5">
+                      <span className="text-[10px] font-bold text-slate-400">Radar Ring:</span>
+                      <div className="flex gap-1">
+                        {[0.5, 1.0, 2.0].map((nm) => (
+                          <button
+                            key={nm}
+                            onClick={() => setProximityThresholdNM(nm)}
+                            className={`px-2 py-0.5 text-[10px] font-black rounded border transition-all ${
+                              proximityThresholdNM === nm
+                                ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-sm'
+                                : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+                            }`}
+                          >
+                            {nm} NM
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Quick Fly-To Simulator Dropdown */}
+                    <div className="flex items-center gap-1.5 pt-0.5">
+                      <span className="text-[10px] font-bold text-slate-400 shrink-0">Test GPS:</span>
+                      <select
+                        onChange={(e) => handleSimulateFlyTo(e.target.value)}
+                        className="w-full bg-slate-900 text-[10px] font-bold text-cyan-300 p-1 rounded border border-slate-700 focus:outline-none focus:border-amber-400 cursor-pointer"
+                        defaultValue=""
+                      >
+                        <option value="" disabled>Fly Boat to Location...</option>
+                        <option value="lesner">Lesner Bridge (0.0 NM - Warning)</option>
+                        <option value="cbbt">CBBT 1st Island (0.0 NM - Security)</option>
+                        <option value="rudee">Rudee Inlet (0.0 NM - No-Wake)</option>
+                        <option value="broad_bay">Broad Bay Canal (0.0 NM)</option>
+                        <option value="offshore">Offshore Waters (5.5 NM - Safe)</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
               </div>
+            ) : (
+              <button
+                onClick={() => setIsRadarMinimized(false)}
+                className="bg-slate-950/90 hover:bg-slate-900 backdrop-blur-md px-3 py-1.5 rounded-xl border border-amber-500/50 text-xs text-amber-300 font-bold shadow-2xl flex items-center gap-1.5 transition-all w-full justify-between"
+                title="Restore Proximity Radar HUD"
+              >
+                <div className="flex items-center gap-1.5">
+                  <ShieldAlert className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                  <span>Proximity Radar (Minimized)</span>
+                </div>
+                <strong className="text-white">Show</strong>
+              </button>
+            )}
+          </div>
+
+          {/* HISTORICAL PATROL DENSITY HEATMAP HUD OR MINIMIZED BADGE */}
+          {showHeatmap && (
+            <div className="pointer-events-auto w-full">
+              {!isHeatmapMinimized ? (
+                <div className="bg-slate-950/95 backdrop-blur-md rounded-xl border border-orange-500/50 p-3 shadow-2xl text-xs space-y-2.5">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+                    <div className="flex items-center gap-1.5 font-black text-white">
+                      <Flame className="w-4 h-4 text-orange-400 animate-pulse" />
+                      <span>Historical Patrol Density Heatmap</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => setShowHeatmapControls(!showHeatmapControls)}
+                        className="p-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-[10px] font-bold flex items-center gap-0.5 px-1.5"
+                      >
+                        <Sliders className="w-3 h-3 text-orange-400" />
+                        <span>{showHeatmapControls ? 'Hide' : 'Filter'}</span>
+                      </button>
+                      <button
+                        onClick={() => setIsHeatmapMinimized(true)}
+                        className="p-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-[10px] font-bold px-1.5"
+                        title="Minimize Heatmap HUD to corner badge"
+                      >
+                        Minimize
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Current Vessel Pin Density Score */}
+                  <div className="flex items-center justify-between gap-2 bg-slate-900/90 p-2 rounded-lg border border-slate-800">
+                    <div>
+                      <div className="text-[10px] uppercase font-bold text-slate-400">Patrol Frequency at Pin</div>
+                      <div className="font-extrabold text-white text-xs mt-0.5 truncate max-w-[180px]">
+                        {localPatrolDensity.closestAreaName || 'Open Waters'}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className={`text-xs font-black ${
+                        localPatrolDensity.level === 'Critical' 
+                          ? 'text-rose-400' 
+                          : localPatrolDensity.level === 'High' 
+                          ? 'text-orange-400' 
+                          : localPatrolDensity.level === 'Moderate' 
+                          ? 'text-yellow-300' 
+                          : 'text-cyan-300'
+                      }`}>
+                        {localPatrolDensity.score} / 10
+                      </div>
+                      <span className={`text-[8px] font-black uppercase px-1.5 py-0.2 rounded border ${
+                        localPatrolDensity.level === 'Critical'
+                          ? 'bg-rose-950 text-rose-300 border-rose-600'
+                          : localPatrolDensity.level === 'High'
+                          ? 'bg-orange-950 text-orange-300 border-orange-600'
+                          : localPatrolDensity.level === 'Moderate'
+                          ? 'bg-yellow-950 text-yellow-300 border-yellow-600'
+                          : 'bg-cyan-950 text-cyan-300 border-cyan-700'
+                      }`}>
+                        {localPatrolDensity.level} Density
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Thermal Gradient Legend */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[9px] font-bold text-slate-400">
+                      <span>Low Frequency</span>
+                      <span>Moderate</span>
+                      <span>High / Critical</span>
+                    </div>
+                    <div className="h-2 rounded-full w-full bg-gradient-to-r from-cyan-400 via-yellow-400 via-orange-500 to-rose-600 shadow-inner border border-slate-700/60" />
+                  </div>
+
+                  {/* Collapsible Filter & Intensity Controls */}
+                  {showHeatmapControls && (
+                    <div className="space-y-2 pt-1 border-t border-slate-800">
+                      {/* Season Model Selector */}
+                      <div>
+                        <div className="text-[10px] font-bold text-slate-400 mb-1">Model / Timeframe:</div>
+                        <div className="grid grid-cols-3 gap-1">
+                          {[
+                            { id: 'all', label: 'Year-Round' },
+                            { id: 'summer_peak', label: 'Summer Peak' },
+                            { id: 'fall_striper', label: 'Fall Run' }
+                          ].map(s => (
+                            <button
+                              key={s.id}
+                              onClick={() => setHeatmapSeason(s.id as any)}
+                              className={`py-1 px-1 text-[9px] font-black rounded border transition-all ${
+                                heatmapSeason === s.id
+                                  ? 'bg-orange-600 text-white border-orange-400 shadow-sm'
+                                  : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
+                              }`}
+                            >
+                              {s.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Heatmap Intensity Preset */}
+                      <div className="flex items-center justify-between gap-1 pt-0.5">
+                        <span className="text-[10px] font-bold text-slate-400">Glow Intensity:</span>
+                        <div className="flex gap-1">
+                          {[
+                            { id: 'soft', label: 'Soft' },
+                            { id: 'normal', label: 'Normal' },
+                            { id: 'high', label: 'Vivid' }
+                          ].map(int => (
+                            <button
+                              key={int.id}
+                              onClick={() => setHeatmapIntensity(int.id as any)}
+                              className={`px-2 py-0.5 text-[9px] font-black rounded border transition-all ${
+                                heatmapIntensity === int.id
+                                  ? 'bg-amber-500 text-slate-950 border-amber-400'
+                                  : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
+                              }`}
+                            >
+                              {int.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="text-[9px] text-slate-400 bg-slate-900/60 p-1.5 rounded border border-slate-800 leading-tight">
+                        ℹ️ Aggregated from multi-year VMRC on-water inspection logs and USCG safety records.
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <button
+                  onClick={() => setIsHeatmapMinimized(false)}
+                  className="bg-slate-950/90 hover:bg-slate-900 backdrop-blur-md px-3 py-1.5 rounded-xl border border-orange-500/50 text-xs text-orange-300 font-bold shadow-2xl flex items-center gap-1.5 transition-all w-full justify-between"
+                  title="Restore Patrol Heatmap HUD"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <Flame className="w-3.5 h-3.5 text-orange-400 animate-pulse" />
+                    <span>Patrol Heatmap (Minimized)</span>
+                  </div>
+                  <strong className="text-white">Show</strong>
+                </button>
+              )}
             </div>
           )}
         </div>
-
-        {/* FLOATING HISTORICAL PATROL DENSITY HEATMAP HUD (Upper-Left Overlay) */}
-        {showHeatmap && (
-          <div className="absolute top-3 left-3 max-w-[320px] w-full bg-slate-950/95 backdrop-blur-md rounded-xl border border-orange-500/50 p-3 shadow-2xl text-xs space-y-2.5 z-20">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
-              <div className="flex items-center gap-1.5 font-black text-white">
-                <Flame className="w-4 h-4 text-orange-400 animate-pulse" />
-                <span>Historical Patrol Density Heatmap</span>
-              </div>
-              <button
-                onClick={() => setShowHeatmapControls(!showHeatmapControls)}
-                className="p-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-[10px] font-bold flex items-center gap-0.5"
-              >
-                <Sliders className="w-3 h-3 text-orange-400" />
-                <span>{showHeatmapControls ? 'Hide' : 'Filter'}</span>
-              </button>
-            </div>
-
-            {/* Current Vessel Pin Density Score */}
-            <div className="flex items-center justify-between gap-2 bg-slate-900/90 p-2 rounded-lg border border-slate-800">
-              <div>
-                <div className="text-[10px] uppercase font-bold text-slate-400">Patrol Frequency at Pin</div>
-                <div className="font-extrabold text-white text-xs mt-0.5 truncate max-w-[180px]">
-                  {localPatrolDensity.closestAreaName || 'Open Waters'}
-                </div>
-              </div>
-              <div className="text-right shrink-0">
-                <div className={`text-xs font-black ${
-                  localPatrolDensity.level === 'Critical' 
-                    ? 'text-rose-400' 
-                    : localPatrolDensity.level === 'High' 
-                    ? 'text-orange-400' 
-                    : localPatrolDensity.level === 'Moderate' 
-                    ? 'text-yellow-300' 
-                    : 'text-cyan-300'
-                }`}>
-                  {localPatrolDensity.score} / 10
-                </div>
-                <span className={`text-[8px] font-black uppercase px-1.5 py-0.2 rounded border ${
-                  localPatrolDensity.level === 'Critical'
-                    ? 'bg-rose-950 text-rose-300 border-rose-600'
-                    : localPatrolDensity.level === 'High'
-                    ? 'bg-orange-950 text-orange-300 border-orange-600'
-                    : localPatrolDensity.level === 'Moderate'
-                    ? 'bg-yellow-950 text-yellow-300 border-yellow-600'
-                    : 'bg-cyan-950 text-cyan-300 border-cyan-700'
-                }`}>
-                  {localPatrolDensity.level} Density
-                </span>
-              </div>
-            </div>
-
-            {/* Thermal Gradient Legend */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-[9px] font-bold text-slate-400">
-                <span>Low Frequency</span>
-                <span>Moderate</span>
-                <span>High / Critical</span>
-              </div>
-              <div className="h-2 rounded-full w-full bg-gradient-to-r from-cyan-400 via-yellow-400 via-orange-500 to-rose-600 shadow-inner border border-slate-700/60" />
-            </div>
-
-            {/* Collapsible Filter & Intensity Controls */}
-            {showHeatmapControls && (
-              <div className="space-y-2 pt-1 border-t border-slate-800">
-                {/* Season Model Selector */}
-                <div>
-                  <div className="text-[10px] font-bold text-slate-400 mb-1">Model / Timeframe:</div>
-                  <div className="grid grid-cols-3 gap-1">
-                    {[
-                      { id: 'all', label: 'Year-Round' },
-                      { id: 'summer_peak', label: 'Summer Peak' },
-                      { id: 'fall_striper', label: 'Fall Run' }
-                    ].map(s => (
-                      <button
-                        key={s.id}
-                        onClick={() => setHeatmapSeason(s.id as any)}
-                        className={`py-1 px-1 text-[9px] font-black rounded border transition-all ${
-                          heatmapSeason === s.id
-                            ? 'bg-orange-600 text-white border-orange-400 shadow-sm'
-                            : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
-                        }`}
-                      >
-                        {s.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Heatmap Intensity Preset */}
-                <div className="flex items-center justify-between gap-1 pt-0.5">
-                  <span className="text-[10px] font-bold text-slate-400">Glow Intensity:</span>
-                  <div className="flex gap-1">
-                    {[
-                      { id: 'soft', label: 'Soft' },
-                      { id: 'normal', label: 'Normal' },
-                      { id: 'high', label: 'Vivid' }
-                    ].map(int => (
-                      <button
-                        key={int.id}
-                        onClick={() => setHeatmapIntensity(int.id as any)}
-                        className={`px-2 py-0.5 text-[9px] font-black rounded border transition-all ${
-                          heatmapIntensity === int.id
-                            ? 'bg-amber-500 text-slate-950 border-amber-400'
-                            : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
-                        }`}
-                      >
-                        {int.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="text-[9px] text-slate-400 bg-slate-900/60 p-1.5 rounded border border-slate-800 leading-tight">
-                  ℹ️ Aggregated from multi-year VMRC on-water inspection logs and USCG safety records.
-                </div>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Selected Zone Popover Card on Map */}
         {selectedZoneInfo && (
@@ -1212,11 +1372,7 @@ export const FishingMap: React.FC<FishingMapProps> = ({
           </div>
         )}
 
-        {/* Floating Instruction */}
-        <div className="absolute top-3 left-3 bg-slate-950/85 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-700/80 text-xs text-slate-200 shadow-xl pointer-events-none flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-cyan-400 animate-ping" />
-          <span>Click any water to move vessel pin & measure live proximity</span>
-        </div>
+
 
         {/* Hotspots Quick Carousel at Bottom of Map */}
         <div className="absolute bottom-3 inset-x-3 flex gap-2 overflow-x-auto no-scrollbar py-1 z-10">
