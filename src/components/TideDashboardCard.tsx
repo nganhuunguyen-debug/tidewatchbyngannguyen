@@ -78,15 +78,17 @@ export const TideDashboardCard: React.FC<TideChartProps> = ({
     };
   }, []);
 
-  // SVG chart dimensions: use stable coordinate space that scales gracefully on all screens
+  // SVG chart dimensions: use generous vertical height and dynamic Y scaling so wave amplitude is bold and easy to read
   const svgWidth = 640;
-  const svgHeight = 240;
-  const paddingX = 28;
-  const paddingY = 26;
+  const svgHeight = 320;
+  const paddingX = 24;
+  const paddingY = 32;
 
   const heights = hourlyHeights.map(h => h.height);
-  const minH = Math.min(...heights, 0);
-  const maxH = Math.max(...heights, 8);
+  const minH = Math.floor(Math.min(...heights, 0));
+  // Dynamic top ceiling based on actual max data + padding room for high tide badges
+  const actualMax = Math.max(...heights);
+  const maxH = Math.max(actualMax + 0.8, 4.0);
   const range = maxH - minH || 1;
 
   const getX = (index: number) => paddingX + (index / (hourlyHeights.length - 1)) * (svgWidth - paddingX * 2);
@@ -317,10 +319,10 @@ export const TideDashboardCard: React.FC<TideChartProps> = ({
               onPointerUp={handlePointerUp}
               onPointerCancel={handlePointerUp}
             >
-              {/* SVG Canvas - Responsive height and clipped to container */}
+              {/* SVG Canvas - Generously sized responsive height so the curve is prominent and readable */}
               <svg
                 viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-                className="w-full h-64 sm:h-72 md:h-80 block overflow-hidden"
+                className="w-full h-80 sm:h-96 md:h-[420px] block overflow-hidden"
               >
                 <defs>
                   <linearGradient id="tideGradient" x1="0%" y1="0%" x2="0%" y2="100%">
