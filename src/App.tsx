@@ -5,6 +5,7 @@ import {
   calculateTidesForCoordinates, 
   LocationCoordinates 
 } from './marineCalculations';
+import { fetchLiveMarineWind, HourlyWindData } from './services/weatherService';
 import { TideDashboardCard } from './components/TideDashboardCard';
 import { FishingMap } from './components/FishingMap';
 import { 
@@ -28,13 +29,29 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState<string>(todayIso);
 
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [liveWindData, setLiveWindData] = useState<HourlyWindData[] | null>(null);
+
+  // Fetch real-time live NOAA / NWS marine wind data whenever location changes
+  useEffect(() => {
+    let isCancelled = false;
+    async function loadLiveWind() {
+      const data = await fetchLiveMarineWind(selectedLocation.lat, selectedLocation.lng);
+      if (!isCancelled && data) {
+        setLiveWindData(data);
+      }
+    }
+    loadLiveWind();
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedLocation.lat, selectedLocation.lng, isRefreshing]);
 
   // Compute base Date object for calculation (using selectedDate at noon to avoid timezone shifts)
   const isViewingToday = selectedDate === todayIso;
   const calculationDate = isViewingToday ? new Date() : new Date(`${selectedDate}T12:00:00`);
 
-  // Calculate real-time continuous sinusoidal tide cycle for chosen coordinates & scheduled date
-  const tideData = calculateTidesForCoordinates(selectedLocation, calculationDate);
+  // Calculate real-time continuous sinusoidal tide cycle with live NOAA meteorological wind data
+  const tideData = calculateTidesForCoordinates(selectedLocation, calculationDate, liveWindData);
 
   // Determine which fish species inhabit the currently picked location
   const getFishesForLocation = (): FishSpeciesInfo[] => {

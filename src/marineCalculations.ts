@@ -1,4 +1,5 @@
 import { CoastalRegion, SeaConditions, TideEvent } from './types';
+import { HourlyWindData } from './services/weatherService';
 
 export interface LocationCoordinates {
   lat: number;
@@ -8,8 +9,13 @@ export interface LocationCoordinates {
 
 /**
  * Computes realistic continuous 24-hour sinusoidal tide cycle for ANY coordinate on Earth
+ * Optionally incorporates live hourly meteorological wind & gust observations
  */
-export function calculateTidesForCoordinates(coords: LocationCoordinates, baseTime: Date = new Date()): {
+export function calculateTidesForCoordinates(
+  coords: LocationCoordinates, 
+  baseTime: Date = new Date(),
+  liveWindData?: HourlyWindData[] | null
+): {
   tideEvents: TideEvent[];
   currentHeightFt: number;
   currentTrend: 'Rising (Flood)' | 'Falling (Ebb)' | 'Slack High' | 'Slack Low';
@@ -68,17 +74,32 @@ export function calculateTidesForCoordinates(coords: LocationCoordinates, baseTi
     const hourStr = dateObj.toLocaleTimeString([], { hour: 'numeric', hour12: true });
     const isNow = Math.abs(t - nowMs) < 1800 * 1000;
     
-    // Realistic diurnal wind cycle: gentle morning breeze (5-8mph), peaks in afternoon sea breeze (12-18mph)
-    const localHour = dateObj.getHours(); // 0 - 23
-    const diurnalFactor = Math.sin(((localHour - 6) / 24) * 2 * Math.PI); // lowest around 6 AM, peaks around 4-5 PM
-    const baseWind = 7 + (phaseSeed % 5);
-    const diurnalWind = Math.max(0, diurnalFactor * 6);
-    const windSpeedMph = Math.round(baseWind + diurnalWind + ((i * 1.7 + phaseSeed) % 3));
-    const windGustMph = windSpeedMph + Math.round(4 + ((i + phaseSeed) % 4));
-    
-    const windDirections = ['WNW', 'NW', 'NNW', 'N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W'];
-    const dirIdx = Math.floor((phaseSeed + localHour * 0.4) % windDirections.length);
-    const windDirection = windDirections[dirIdx];
+    // Check if we have live NOAA/NWS forecast data for this hour
+    let windSpeedMph: number;
+    let windGustMph: number;
+    let windDirection: string;
+
+    const matchedLive = liveWindData && liveWindData.length > 0
+      ? liveWindData.find(w => Math.abs(w.timestamp - t) <= 1800 * 1000)
+      : null;
+
+    if (matchedLive) {
+      windSpeedMph = matchedLive.windSpeedMph;
+      windGustMph = matchedLive.windGustMph;
+      windDirection = matchedLive.windDirectionText;
+    } else {
+      // Fallback diurnal wind model
+      const localHour = dateObj.getHours(); // 0 - 23
+      const diurnalFactor = Math.sin(((localHour - 6) / 24) * 2 * Math.PI); // lowest around 6 AM, peaks around 4-5 PM
+      const baseWind = 7 + (phaseSeed % 5);
+      const diurnalWind = Math.max(0, diurnalFactor * 6);
+      windSpeedMph = Math.round(baseWind + diurnalWind + ((i * 1.7 + phaseSeed) % 3));
+      windGustMph = windSpeedMph + Math.round(4 + ((i + phaseSeed) % 4));
+      
+      const windDirections = ['WNW', 'NW', 'NNW', 'N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W'];
+      const dirIdx = Math.floor((phaseSeed + localHour * 0.4) % windDirections.length);
+      windDirection = windDirections[dirIdx];
+    }
 
     hourlyHeights.push({
       hour: hourStr,
