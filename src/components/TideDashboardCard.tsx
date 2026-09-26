@@ -51,11 +51,39 @@ export const TideDashboardCard: React.FC<TideChartProps> = ({
     }
   }, [selectedDate, isToday, initialIdx]);
 
-  // SVG chart dimensions
-  const svgWidth = 640;
-  const svgHeight = 224;
-  const paddingX = 40;
-  const paddingY = 28;
+  // Measure container width for dynamic responsive SVG viewBox and layout
+  const [containerWidth, setContainerWidth] = useState<number>(640);
+  const isMobile = containerWidth < 520;
+  const isSmallMobile = containerWidth < 400;
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const updateWidth = () => {
+      if (containerRef.current) {
+        const w = containerRef.current.getBoundingClientRect().width;
+        if (w > 0) setContainerWidth(w);
+      }
+    };
+    updateWidth();
+
+    // Use ResizeObserver for responsive adaptation
+    const observer = new ResizeObserver(() => {
+      updateWidth();
+    });
+    observer.observe(containerRef.current);
+    window.addEventListener('resize', updateWidth);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', updateWidth);
+    };
+  }, []);
+
+  // Responsive SVG viewBox dimensions & adaptive padding:
+  // On mobile, compact width and significantly reduced padding maximize the harmonic wave width and vertical height
+  const svgWidth = isMobile ? Math.max(340, Math.round(containerWidth)) : 640;
+  const svgHeight = isMobile ? (isSmallMobile ? 260 : 270) : 270;
+  const paddingX = isSmallMobile ? 18 : isMobile ? 22 : 36;
+  const paddingY = isMobile ? 24 : 32;
 
   const heights = hourlyHeights.map(h => h.height);
   const minH = Math.min(...heights, 0);
@@ -256,11 +284,11 @@ export const TideDashboardCard: React.FC<TideChartProps> = ({
       </div>
 
       {/* 24-Hour Tidal Harmonic Curve Section (Moved to the Top) */}
-      <div className="my-4 bg-slate-950/70 rounded-xl p-4 border border-slate-800">
+      <div className="my-4 bg-slate-950/70 rounded-xl p-2.5 sm:p-4 border border-slate-800">
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400 px-1 mb-2">
-          <div className="flex items-center gap-3">
-            <span className="font-semibold text-slate-300">
-              24-Hour Tidal Harmonic Curve ({new Date(selectedDate + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })})
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <span className="font-semibold text-slate-200">
+              24-Hour Tidal Harmonic Curve ({new Date(selectedDate + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })})
             </span>
             {inspectedData.windSpeedMph !== undefined && (
               <span className="text-[11px] font-bold text-teal-300 bg-teal-950/80 border border-teal-500/40 px-2 py-0.5 rounded-md flex items-center gap-1 shadow-sm">
@@ -270,28 +298,30 @@ export const TideDashboardCard: React.FC<TideChartProps> = ({
             )}
           </div>
           <span className="text-[11px] text-cyan-400 font-medium flex items-center gap-1">
-            <Sparkles className="w-3 h-3 text-cyan-400 animate-pulse" />
-            Slide mouse, tap curve, or use scrubber — inspect Tide Height, Wind Speed, Mullet & Croaker in the side panel
+            <Sparkles className="w-3 h-3 text-cyan-400 shrink-0 animate-pulse" />
+            <span className="hidden sm:inline">Slide mouse, tap curve, or use scrubber — inspect Tide Height & Wind</span>
+            <span className="sm:hidden">Tap curve or drag scrubber below</span>
           </span>
         </div>
 
         {/* Side-by-Side Layout: Curve on Left, Information Panel on Right */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4 items-stretch">
           {/* Left Column: Harmonic Tide Curve (8 Cols on Desktop) */}
-          <div className="lg:col-span-8 bg-slate-900/60 rounded-xl p-3 border border-slate-800 flex flex-col justify-between">
+          <div className="lg:col-span-8 bg-slate-900/60 rounded-xl p-1.5 sm:p-3 border border-slate-800 flex flex-col justify-between">
             {/* Interactive Graph Surface */}
             <div
               ref={containerRef}
-              className="w-full relative select-none cursor-pointer touch-none"
+              className="w-full relative select-none cursor-pointer touch-none bg-slate-950/40 rounded-xl p-0.5 sm:p-1"
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
               onPointerCancel={handlePointerUp}
             >
-              {/* SVG Canvas */}
+              {/* SVG Canvas - Increased mobile height from h-60 to h-72 sm:h-80 md:h-84 */}
               <svg
                 viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-                className="w-full h-60 block"
+                className="w-full h-72 sm:h-80 md:h-88 block overflow-visible"
+                preserveAspectRatio="none"
               >
                 <defs>
                   <linearGradient id="tideGradient" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -310,12 +340,17 @@ export const TideDashboardCard: React.FC<TideChartProps> = ({
                 <line x1={paddingX} y1={getY(maxH / 2)} x2={svgWidth - paddingX} y2={getY(maxH / 2)} stroke="#334155" strokeDasharray="3 3" strokeWidth="1" />
                 <line x1={paddingX} y1={getY(maxH)} x2={svgWidth - paddingX} y2={getY(maxH)} stroke="#334155" strokeDasharray="3 3" strokeWidth="1" />
 
-                <text x={paddingX - 6} y={getY(maxH) + 4} fill="#64748b" fontSize="10" textAnchor="end">{maxH.toFixed(0)}ft</text>
-                <text x={paddingX - 6} y={getY(maxH / 2) + 4} fill="#64748b" fontSize="10" textAnchor="end">{(maxH / 2).toFixed(1)}ft</text>
-                <text x={paddingX - 6} y={getY(0) + 4} fill="#64748b" fontSize="10" textAnchor="end">0ft</text>
+                {/* Y-Axis height labels (hidden on extra small mobile to give maximum room to the curve) */}
+                {!isSmallMobile && (
+                  <>
+                    <text x={paddingX - 4} y={getY(maxH) + 3} fill="#64748b" fontSize={isMobile ? "8.5" : "10"} textAnchor="end">{maxH.toFixed(0)}ft</text>
+                    <text x={paddingX - 4} y={getY(maxH / 2) + 3} fill="#64748b" fontSize={isMobile ? "8.5" : "10"} textAnchor="end">{(maxH / 2).toFixed(1)}ft</text>
+                    <text x={paddingX - 4} y={getY(0) + 3} fill="#64748b" fontSize={isMobile ? "8.5" : "10"} textAnchor="end">0ft</text>
+                  </>
+                )}
 
                 <path d={areaD} fill="url(#tideGradient)" />
-                <path d={pathD} fill="none" stroke="url(#lineGrad)" strokeWidth="3.5" strokeLinecap="round" />
+                <path d={pathD} fill="none" stroke="url(#lineGrad)" strokeWidth={isMobile ? "3" : "3.5"} strokeLinecap="round" />
 
                 {/* High Tide and Low Tide Labels on the Harmonic Curve */}
                 {extremaPoints.map((pt, idx) => {
@@ -327,13 +362,20 @@ export const TideDashboardCard: React.FC<TideChartProps> = ({
                   const strokeColor = isHigh ? '#34d399' : '#38bdf8';
                   const textColor = isHigh ? '#a7f3d0' : '#bae6fd';
 
+                  // Dynamic badge width and responsive text for mobile vs desktop
+                  const badgeW = isMobile ? 54 : 68;
+                  const badgeX = Math.max(paddingX, Math.min(svgWidth - paddingX - badgeW, pt.x - badgeW / 2));
+                  const labelText = isMobile 
+                    ? (isHigh ? '▲ HIGH' : '▼ LOW') 
+                    : (isHigh ? '▲ HIGH TIDE' : '▼ LOW TIDE');
+
                   return (
                     <g key={`extrema-${idx}`} className="transition-opacity">
                       {/* Anchor Dot on the curve */}
                       <circle
                         cx={pt.x}
                         cy={pt.y}
-                        r="4.5"
+                        r={isMobile ? "3.5" : "4.5"}
                         fill={isHigh ? '#10b981' : '#0284c7'}
                         stroke="#ffffff"
                         strokeWidth="1.5"
@@ -353,9 +395,9 @@ export const TideDashboardCard: React.FC<TideChartProps> = ({
 
                       {/* Pill Badge Background */}
                       <rect
-                        x={Math.max(paddingX, Math.min(svgWidth - paddingX - 68, pt.x - 34))}
+                        x={badgeX}
                         y={badgeY}
-                        width="68"
+                        width={badgeW}
                         height="16"
                         rx="4"
                         fill={pillColor}
@@ -366,15 +408,15 @@ export const TideDashboardCard: React.FC<TideChartProps> = ({
 
                       {/* Letter Label: High Tide / Low Tide */}
                       <text
-                        x={Math.max(paddingX, Math.min(svgWidth - paddingX - 68, pt.x - 34)) + 34}
+                        x={badgeX + badgeW / 2}
                         y={badgeY + 11.5}
                         fill={textColor}
-                        fontSize="9.5"
+                        fontSize={isMobile ? "8.5" : "9.5"}
                         fontWeight="800"
                         letterSpacing="0.02em"
                         textAnchor="middle"
                       >
-                        {isHigh ? '▲ HIGH TIDE' : '▼ LOW TIDE'}
+                        {labelText}
                       </text>
                     </g>
                   );
@@ -407,12 +449,12 @@ export const TideDashboardCard: React.FC<TideChartProps> = ({
                     strokeWidth="2.5"
                     strokeDasharray="3 3"
                   />
-                  <circle cx={inspectedPt.x} cy={inspectedPt.y} r="12" fill="#0284c7" opacity="0.4" />
-                  <circle cx={inspectedPt.x} cy={inspectedPt.y} r="6" fill="#38bdf8" stroke="#ffffff" strokeWidth="2.5" />
+                  <circle cx={inspectedPt.x} cy={inspectedPt.y} r={isMobile ? "9" : "12"} fill="#0284c7" opacity="0.4" />
+                  <circle cx={inspectedPt.x} cy={inspectedPt.y} r={isMobile ? "5" : "6"} fill="#38bdf8" stroke="#ffffff" strokeWidth="2" />
 
                   {/* Marker Tag over Cursor Line - Displays Hour + Tide + Wind Speed */}
                   {(() => {
-                    const tagW = 104;
+                    const tagW = isMobile ? 86 : 104;
                     const tagX = Math.max(paddingX, Math.min(svgWidth - paddingX - tagW, inspectedPt.x - tagW / 2));
                     const windStr = inspectedData.windSpeedMph !== undefined ? `💨 ${inspectedData.windSpeedMph}mph` : '';
                     return (
@@ -432,31 +474,38 @@ export const TideDashboardCard: React.FC<TideChartProps> = ({
                           x={tagX + tagW / 2}
                           y={paddingY - 9}
                           fill="#ffffff"
-                          fontSize="10"
+                          fontSize={isMobile ? "9" : "10"}
                           fontWeight="bold"
                           textAnchor="middle"
                         >
                           <tspan fill="#38bdf8">{inspectedData.hour}</tspan>
-                          {windStr && <tspan fill="#2dd4bf" fontWeight="800"> • {windStr}</tspan>}
+                          {windStr && !isSmallMobile && <tspan fill="#2dd4bf" fontWeight="800"> • {windStr}</tspan>}
                         </text>
                       </g>
                     );
                   })()}
                 </g>
 
-                {/* Bottom timeline and wind speed axis */}
+                {/* Bottom timeline and wind speed axis:
+                    Simplified interval on mobile (every 6 hours) vs desktop (every 3 hours) to prevent overlap */}
                 {hourlyHeights.map((h, i) => {
-                  if (i % 3 !== 0 && i !== hourlyHeights.length - 1) return null;
+                  const step = isSmallMobile ? 6 : isMobile ? 4 : 3;
+                  if (i % step !== 0 && i !== hourlyHeights.length - 1) return null;
                   const x = getX(i);
+                  // Simplified short label on mobile: e.g. "12p" instead of "12:00 PM"
+                  const displayHour = isMobile
+                    ? h.hour.replace(':00', '').toLowerCase().replace(' ', '')
+                    : h.hour;
+
                   return (
                     <g key={i}>
                       {/* Hour label */}
-                      <text x={x} y={svgHeight - 17} fill="#94a3b8" fontSize="9.5" fontWeight="500" textAnchor="middle">
-                        {h.hour}
+                      <text x={x} y={svgHeight - 19} fill="#cbd5e1" fontSize={isMobile ? "10" : "11"} fontWeight="600" textAnchor="middle">
+                        {displayHour}
                       </text>
                       {/* Wind speed label directly on curve axis */}
                       {h.windSpeedMph !== undefined && (
-                        <text x={x} y={svgHeight - 4} fill="#2dd4bf" fontSize="8.5" fontWeight="bold" textAnchor="middle">
+                        <text x={x} y={svgHeight - 5} fill="#2dd4bf" fontSize={isMobile ? "8.5" : "9.5"} fontWeight="bold" textAnchor="middle">
                           {h.windSpeedMph}mph
                         </text>
                       )}
@@ -467,9 +516,9 @@ export const TideDashboardCard: React.FC<TideChartProps> = ({
             </div>
 
             {/* Slider Scrubber Alternative to Touch: 100% Mobile & Desktop accessible */}
-            <div className="mt-3 pt-2 border-t border-slate-800 flex items-center justify-between gap-3">
-              <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1 shrink-0">
-                <Sliders className="w-3.5 h-3.5 text-cyan-400" />
+            <div className="mt-3 pt-2.5 border-t border-slate-800 flex items-center justify-between gap-3 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80">
+              <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5 shrink-0">
+                <Sliders className="w-4 h-4 text-cyan-400" />
                 Scrub Hour:
               </span>
               <input
@@ -480,16 +529,16 @@ export const TideDashboardCard: React.FC<TideChartProps> = ({
                 onChange={(e) => {
                   setSelectedHourIdx(Number(e.target.value));
                 }}
-                className="w-full accent-cyan-400 h-1.5 bg-slate-700 rounded-lg cursor-pointer"
+                className="w-full accent-cyan-400 h-2 bg-slate-700 rounded-lg cursor-pointer"
               />
               <div className="flex items-center gap-2 shrink-0">
-                <span className="text-xs font-bold text-cyan-300">
+                <span className="text-xs font-extrabold text-cyan-300 bg-cyan-950 px-2 py-0.5 rounded border border-cyan-700/60">
                   {inspectedData.hour}
                 </span>
                 {inspectedData.windSpeedMph !== undefined && (
                   <span className="text-xs font-extrabold text-teal-300 bg-teal-950/90 border border-teal-500/40 px-2 py-0.5 rounded flex items-center gap-1">
                     <Wind className="w-3 h-3 text-teal-400" />
-                    {inspectedData.windSpeedMph} mph {inspectedData.windDirection}
+                    {inspectedData.windSpeedMph} mph
                   </span>
                 )}
               </div>
