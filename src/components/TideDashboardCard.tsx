@@ -78,12 +78,11 @@ export const TideDashboardCard: React.FC<TideChartProps> = ({
     };
   }, []);
 
-  // Responsive SVG viewBox dimensions & adaptive padding:
-  // On mobile, compact width and significantly reduced padding maximize the harmonic wave width and vertical height
-  const svgWidth = isMobile ? Math.max(340, Math.round(containerWidth)) : 640;
-  const svgHeight = isMobile ? (isSmallMobile ? 260 : 270) : 270;
-  const paddingX = isSmallMobile ? 18 : isMobile ? 22 : 36;
-  const paddingY = isMobile ? 24 : 32;
+  // SVG chart dimensions: use stable coordinate space that scales gracefully on all screens
+  const svgWidth = 640;
+  const svgHeight = 240;
+  const paddingX = 28;
+  const paddingY = 26;
 
   const heights = hourlyHeights.map(h => h.height);
   const minH = Math.min(...heights, 0);
@@ -240,12 +239,12 @@ export const TideDashboardCard: React.FC<TideChartProps> = ({
   const featuredFish = allSpecies.find(f => f.id === selectedSpeciesId) || allSpecies[0];
 
   return (
-    <div className="bg-slate-900/90 backdrop-blur-md rounded-2xl border border-cyan-500/20 p-5 shadow-2xl text-slate-100 flex flex-col justify-between">
+    <div className="bg-slate-900/90 backdrop-blur-md rounded-2xl border border-cyan-500/20 p-3 sm:p-5 shadow-2xl text-slate-100 flex flex-col justify-between overflow-hidden">
       {/* Top Banner with NOAA station + Date Picker */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-4">
-        <div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3 sm:pb-4">
+        <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className={`flex h-2.5 w-2.5 rounded-full ${isToday ? 'bg-cyan-400 animate-ping' : 'bg-amber-400'}`} />
+            <span className={`flex h-2.5 w-2.5 rounded-full ${isToday ? 'bg-cyan-400 animate-ping' : 'bg-amber-400'} shrink-0`} />
             <span className="text-xs uppercase tracking-wider font-semibold text-cyan-400">
               Live NOAA Tidal Station
             </span>
@@ -255,14 +254,15 @@ export const TideDashboardCard: React.FC<TideChartProps> = ({
               </span>
             )}
           </div>
-          <h2 className="text-lg font-bold text-white tracking-tight mt-0.5">{stationName}</h2>
+          <h2 className="text-base sm:text-lg font-bold text-white tracking-tight mt-0.5 truncate">{stationName}</h2>
         </div>
 
         {/* Date Selector for Future Scheduling */}
-        <div className="flex items-center gap-2 bg-slate-950/80 p-1 rounded-xl border border-slate-700">
-          <div className="flex items-center gap-1.5 px-2 text-xs text-slate-300 font-semibold">
+        <div className="flex items-center justify-between sm:justify-start gap-2 bg-slate-950/80 p-1.5 rounded-xl border border-slate-700 w-full sm:w-auto">
+          <div className="flex items-center gap-1.5 px-1 text-xs text-slate-300 font-semibold shrink-0">
             <Calendar className="w-4 h-4 text-cyan-400" />
-            <span>Schedule Date:</span>
+            <span className="hidden sm:inline">Schedule Date:</span>
+            <span className="sm:hidden">Date:</span>
           </div>
           <input
             type="date"
@@ -270,12 +270,12 @@ export const TideDashboardCard: React.FC<TideChartProps> = ({
             onChange={(e) => {
               if (e.target.value) onDateChange(e.target.value);
             }}
-            className="bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs px-2.5 py-1.5 rounded-lg border border-slate-600 focus:outline-none focus:border-cyan-400 cursor-pointer"
+            className="bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs px-2 py-1.5 rounded-lg border border-slate-600 focus:outline-none focus:border-cyan-400 cursor-pointer flex-1 sm:flex-initial min-w-0"
           />
           {!isToday && (
             <button
               onClick={() => onDateChange(todayIso)}
-              className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-2.5 py-1.5 rounded-lg text-[11px] transition-colors"
+              className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-2.5 py-1.5 rounded-lg text-[11px] transition-colors shrink-0"
             >
               Today
             </button>
@@ -317,11 +317,10 @@ export const TideDashboardCard: React.FC<TideChartProps> = ({
               onPointerUp={handlePointerUp}
               onPointerCancel={handlePointerUp}
             >
-              {/* SVG Canvas - Increased mobile height from h-60 to h-72 sm:h-80 md:h-84 */}
+              {/* SVG Canvas - Responsive height and clipped to container */}
               <svg
                 viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-                className="w-full h-72 sm:h-80 md:h-88 block overflow-visible"
-                preserveAspectRatio="none"
+                className="w-full h-64 sm:h-72 md:h-80 block overflow-hidden"
               >
                 <defs>
                   <linearGradient id="tideGradient" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -689,7 +688,7 @@ export const TideDashboardCard: React.FC<TideChartProps> = ({
       </div>
 
       {/* Main Stats Row (Shows Inspected Hour Data & Fish) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 my-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 my-2">
         {/* Height */}
         <div className="bg-cyan-950/30 border border-cyan-500/40 rounded-xl p-3.5 transition-all">
           <div className="text-xs text-slate-400 font-medium flex items-center justify-between">
