@@ -3,10 +3,11 @@ import { COASTAL_REGIONS, FISHING_HOTSPOTS, FISH_SPECIES_CATALOG } from './data'
 import { CoastalRegion, FishingHotspot, FishSpeciesInfo } from './types';
 import { 
   calculateTidesForCoordinates, 
-  LocationCoordinates 
+  LocationCoordinates,
+  calculateSolunarForecast,
+  HourlyWindData
 } from './marineCalculations';
-import { fetchLiveMarineWind, HourlyWindData } from './services/weatherService';
-import { calculateSolunarForecast } from './services/solunarService';
+import { fetchLiveMarineWind } from './weatherService';
 import { TideDashboardCard } from './components/TideDashboardCard';
 import { SolunarActivityWidget } from './components/SolunarActivityWidget';
 import { FishingMap } from './components/FishingMap';

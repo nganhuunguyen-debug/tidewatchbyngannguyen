@@ -1,5 +1,5 @@
 import React from 'react';
-import { SolunarForecast, SolunarPeriod, getActiveSolunarPeriodForTime } from '../services/solunarService';
+import { SolunarForecast, SolunarPeriod, getActiveSolunarPeriodForTime } from '../marineCalculations';
 import { 
   Moon, Sparkles, Clock, Flame, ChevronRight, AlertCircle, Compass, CheckCircle2, ShieldCheck, Sun
 } from 'lucide-react';

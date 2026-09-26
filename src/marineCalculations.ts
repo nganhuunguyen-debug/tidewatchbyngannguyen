@@ -1,5 +1,215 @@
 import { CoastalRegion, SeaConditions, TideEvent } from './types';
-import { HourlyWindData } from './services/weatherService';
+
+export type WeatherCategory = 'Rain' | 'Cloudy' | 'Clear' | 'Partly Cloudy' | 'Thunderstorm';
+
+export interface HourlyWindData {
+  timeIso: string;
+  hourLabel: string;
+  timestamp: number;
+  windSpeedMph: number;
+  windGustMph: number;
+  windDirectionDeg: number;
+  windDirectionText: string;
+  temperatureF?: number;
+  weatherCode?: number;
+  precipitationProbability: number;
+  cloudCover: number;
+  weatherCategory: WeatherCategory;
+  conditionSummary: string;
+}
+
+export interface SolunarPeriod {
+  type: 'Major' | 'Minor';
+  name: string;
+  start: string;
+  end: string;
+  startTimestamp: number;
+  endTimestamp: number;
+  description: string;
+}
+
+export interface SolunarForecast {
+  dateIso: string;
+  displayDate: string;
+  moonPhase: 'New Moon' | 'Waxing Crescent' | 'First Quarter' | 'Waxing Gibbous' | 'Full Moon' | 'Waning Gibbous' | 'Last Quarter' | 'Waning Crescent';
+  moonPhaseIcon: string;
+  moonIllumination: number;
+  moonAgeDays: number;
+  fishingQualityScore: number;
+  qualityRating: 'Peak Activity' | 'High Activity' | 'Moderate Activity' | 'Fair Activity';
+  qualitySummary: string;
+  majorPeriods: SolunarPeriod[];
+  minorPeriods: SolunarPeriod[];
+  allPeriods: SolunarPeriod[];
+  moonOverheadTime: string;
+  moonUnderfootTime: string;
+  moonriseTime: string;
+  moonsetTime: string;
+}
+
+function getMoonData(date: Date) {
+  const refNewMoon = new Date(Date.UTC(2024, 0, 11, 11, 57, 0)).getTime();
+  const synodicMonthMs = 29.53058867 * 24 * 60 * 60 * 1000;
+  
+  const diffMs = date.getTime() - refNewMoon;
+  const cycles = diffMs / synodicMonthMs;
+  const cycleFraction = ((cycles % 1) + 1) % 1;
+  const ageDays = cycleFraction * 29.53058867;
+  const illumination = Math.round((1 - Math.cos(cycleFraction * 2 * Math.PI)) / 2 * 100);
+
+  let phase: SolunarForecast['moonPhase'];
+  let icon: string;
+
+  if (ageDays < 1.84) {
+    phase = 'New Moon';
+    icon = '🌑';
+  } else if (ageDays < 5.53) {
+    phase = 'Waxing Crescent';
+    icon = '🌒';
+  } else if (ageDays < 9.22) {
+    phase = 'First Quarter';
+    icon = '🌓';
+  } else if (ageDays < 12.91) {
+    phase = 'Waxing Gibbous';
+    icon = '🌔';
+  } else if (ageDays < 16.61) {
+    phase = 'Full Moon';
+    icon = '🌕';
+  } else if (ageDays < 20.3) {
+    phase = 'Waning Gibbous';
+    icon = '🌖';
+  } else if (ageDays < 23.99) {
+    phase = 'Last Quarter';
+    icon = '🌗';
+  } else if (ageDays < 27.68) {
+    phase = 'Waning Crescent';
+    icon = '🌘';
+  } else {
+    phase = 'New Moon';
+    icon = '🌑';
+  }
+
+  return { phase, icon, illumination, ageDays: Math.round(ageDays * 10) / 10, cycleFraction };
+}
+
+function formatHourMinute(d: Date): string {
+  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+}
+
+export function calculateSolunarForecast(
+  date: Date, 
+  lat: number = 36.909, 
+  lng: number = -76.096
+): SolunarForecast {
+  const moon = getMoonData(date);
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  const day = date.getDate();
+  const midnightMs = new Date(year, month, day, 0, 0, 0).getTime();
+
+  const transitHours = ((moon.cycleFraction * 24 + 12 - (lng / 15)) % 24 + 24) % 24;
+  const transitMs = midnightMs + transitHours * 3600 * 1000;
+  const underfootMs = transitMs + 12.42 * 3600 * 1000;
+  const moonriseMs = transitMs - 6.21 * 3600 * 1000;
+  const moonsetMs = transitMs + 6.21 * 3600 * 1000;
+
+  const majorPeriods: SolunarPeriod[] = [
+    {
+      type: 'Major',
+      name: 'Moon Overhead (Major 1)',
+      start: formatHourMinute(new Date(transitMs - 60 * 60 * 1000)),
+      end: formatHourMinute(new Date(transitMs + 60 * 60 * 1000)),
+      startTimestamp: transitMs - 60 * 60 * 1000,
+      endTimestamp: transitMs + 60 * 60 * 1000,
+      description: 'Lunar zenith: Peak gravitational pull stimulates maximum predatory feeding instincts.'
+    },
+    {
+      type: 'Major',
+      name: 'Moon Underfoot (Major 2)',
+      start: formatHourMinute(new Date(underfootMs - 60 * 60 * 1000)),
+      end: formatHourMinute(new Date(underfootMs + 60 * 60 * 1000)),
+      startTimestamp: underfootMs - 60 * 60 * 1000,
+      endTimestamp: underfootMs + 60 * 60 * 1000,
+      description: 'Lunar nadir: Secondary gravitational surge triggering heavy school feeding.'
+    }
+  ];
+
+  const minorPeriods: SolunarPeriod[] = [
+    {
+      type: 'Minor',
+      name: 'Moonrise (Minor 1)',
+      start: formatHourMinute(new Date(moonriseMs - 30 * 60 * 1000)),
+      end: formatHourMinute(new Date(moonriseMs + 30 * 60 * 1000)),
+      startTimestamp: moonriseMs - 30 * 60 * 1000,
+      endTimestamp: moonriseMs + 30 * 60 * 1000,
+      description: 'Moon emergence over the horizon drives opportunistic forage bites.'
+    },
+    {
+      type: 'Minor',
+      name: 'Moonset (Minor 2)',
+      start: formatHourMinute(new Date(moonsetMs - 30 * 60 * 1000)),
+      end: formatHourMinute(new Date(moonsetMs + 30 * 60 * 1000)),
+      startTimestamp: moonsetMs - 30 * 60 * 1000,
+      endTimestamp: moonsetMs + 30 * 60 * 1000,
+      description: 'Moon descent on the horizon creates a concentrated 60-minute feeding flurry.'
+    }
+  ];
+
+  const distFromExtreme = Math.min(
+    Math.abs(moon.illumination - 0),
+    Math.abs(moon.illumination - 100)
+  );
+  let score = Math.round(96 - (distFromExtreme * 0.75));
+
+  if (moon.phase === 'Full Moon' || moon.phase === 'New Moon') {
+    score = Math.min(100, score + 4);
+  } else if (moon.phase === 'First Quarter' || moon.phase === 'Last Quarter') {
+    score = Math.max(52, score - 6);
+  }
+  score = Math.max(45, Math.min(99, score));
+
+  let qualityRating: SolunarForecast['qualityRating'];
+  let qualitySummary: string;
+
+  if (score >= 88) {
+    qualityRating = 'Peak Activity';
+    qualitySummary = 'Exceptional feeding potential! Spring tides and strong lunar alignment trigger prime bites during major windows.';
+  } else if (score >= 75) {
+    qualityRating = 'High Activity';
+    qualitySummary = 'Strong feeding activity expected. Fish will feed aggressively during Major & Minor transit periods.';
+  } else if (score >= 60) {
+    qualityRating = 'Moderate Activity';
+    qualitySummary = 'Average feeding activity. Focus on moving water during the designated 2-hour Major transit window.';
+  } else {
+    qualityRating = 'Fair Activity';
+    qualitySummary = 'Neap tide cycle with sluggish water movement. Key bites will be restricted tightly to Major windows.';
+  }
+
+  const allPeriods = [...majorPeriods, ...minorPeriods].sort((a, b) => a.startTimestamp - b.startTimestamp);
+
+  return {
+    dateIso: date.toISOString().split('T')[0],
+    displayDate: date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }),
+    moonPhase: moon.phase,
+    moonPhaseIcon: moon.icon,
+    moonIllumination: moon.illumination,
+    moonAgeDays: moon.ageDays,
+    fishingQualityScore: score,
+    qualityRating,
+    qualitySummary,
+    majorPeriods,
+    minorPeriods,
+    allPeriods,
+    moonOverheadTime: formatHourMinute(new Date(transitMs)),
+    moonUnderfootTime: formatHourMinute(new Date(underfootMs)),
+    moonriseTime: formatHourMinute(new Date(moonriseMs)),
+    moonsetTime: formatHourMinute(new Date(moonsetMs))
+  };
+}
+
+export function getActiveSolunarPeriodForTime(timestamp: number, periods: SolunarPeriod[]): SolunarPeriod | null {
+  return periods.find(p => timestamp >= p.startTimestamp && timestamp <= p.endTimestamp) || null;
+}
 
 export interface LocationCoordinates {
   lat: number;

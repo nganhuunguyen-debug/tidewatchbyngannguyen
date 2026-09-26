@@ -5,7 +5,7 @@ import {
   Calendar, Fish, Sparkles, ShieldAlert, CheckCircle2, Sliders, Anchor, 
   Wind, CloudRain, Cloud, Sun, CloudSun, CloudLightning, Flame, Moon 
 } from 'lucide-react';
-import { SolunarForecast, getActiveSolunarPeriodForTime } from '../services/solunarService';
+import { SolunarForecast, getActiveSolunarPeriodForTime } from '../marineCalculations';
 
 interface TideChartProps {
   currentHeightFt: number;
