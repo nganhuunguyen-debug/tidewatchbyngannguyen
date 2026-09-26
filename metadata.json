@@ -1,0 +1,10 @@
+{
+  "name": "TideCast & Angler - Live Tides, Sea Conditions & Fishing Hotspots",
+  "description": "Real-time marine conditions, high/low tide predictions, fish activity forecasts, and interactive coastal fishing hotspots map.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
