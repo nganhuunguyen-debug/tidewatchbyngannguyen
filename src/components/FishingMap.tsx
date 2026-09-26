@@ -645,6 +645,8 @@ export const FishingMap: React.FC<FishingMapProps> = ({
     patrolCirclesRef.current.forEach(c => c.setMap(null));
     patrolCirclesRef.current = [];
 
+    if (!proximityEnabled) return;
+
     PATROL_RESTRICTED_ZONES.forEach((zone) => {
       const isTargetNearest = nearestZone?.id === zone.id && proximityEnabled;
       const isUserInside = isTargetNearest && nearestZone.isInsideThreshold;

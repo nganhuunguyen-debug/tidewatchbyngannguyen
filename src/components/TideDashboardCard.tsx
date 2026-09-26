@@ -4,7 +4,8 @@ import {
   ArrowUpRight, ArrowDownRight, Clock, Waves, Compass, Activity, 
   Calendar, Fish, Sparkles, ShieldAlert, CheckCircle2, Sliders, Anchor, 
   Wind, CloudRain, Cloud, Sun, CloudSun, CloudLightning, Flame, Moon,
-  ShieldCheck, Gauge, Info, ChevronDown, ChevronUp, AlertTriangle, Check
+  ShieldCheck, Gauge, Info, ChevronDown, ChevronUp, AlertTriangle, Check,
+  Bell, BellRing
 } from 'lucide-react';
 import { SolunarForecast, getActiveSolunarPeriodForTime } from '../marineCalculations';
 
@@ -61,6 +62,46 @@ export const TideDashboardCard: React.FC<TideChartProps> = ({
 
   // Tide Reliability Index & Variance Drawer Toggle
   const [showReliabilityDetails, setShowReliabilityDetails] = useState<boolean>(false);
+
+  // Tide Turn Notification State & Handler
+  const [notifyOnTideTurn, setNotifyOnTideTurn] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('vmrc_notify_tide_turn');
+      return saved !== null ? JSON.parse(saved) : false;
+    } catch {
+      return false;
+    }
+  });
+
+  const [tideTurnToast, setTideTurnToast] = useState<string | null>(null);
+
+  const handleToggleNotifyTideTurn = async (val: boolean) => {
+    setNotifyOnTideTurn(val);
+    try {
+      localStorage.setItem('vmrc_notify_tide_turn', JSON.stringify(val));
+    } catch {}
+
+    if (val) {
+      if ('Notification' in window && Notification.permission !== 'granted') {
+        try {
+          await Notification.requestPermission();
+        } catch {}
+      }
+      setTideTurnToast(`Notifications enabled for tide turns at ${stationName}!`);
+      setTimeout(() => setTideTurnToast(null), 4000);
+
+      if ('Notification' in window && Notification.permission === 'granted') {
+        try {
+          new Notification('🌊 Tide Turn Alert Enabled', {
+            body: `You will be alerted when the tide shifts from high to low or low to high at ${stationName} (${currentTrend}).`,
+          });
+        } catch {}
+      }
+    } else {
+      setTideTurnToast('Tide turn notifications disabled.');
+      setTimeout(() => setTideTurnToast(null), 3000);
+    }
+  };
 
   // Measure container width for dynamic responsive SVG viewBox and layout
   const [containerWidth, setContainerWidth] = useState<number>(900);
@@ -407,31 +448,59 @@ export const TideDashboardCard: React.FC<TideChartProps> = ({
           <h2 className="text-base sm:text-lg font-bold text-white tracking-tight mt-0.5 truncate">{stationName}</h2>
         </div>
 
-        {/* Date Selector for Future Scheduling */}
-        <div className="flex items-center justify-between sm:justify-start gap-2 bg-slate-950/80 p-1.5 rounded-xl border border-slate-700 w-full sm:w-auto">
-          <div className="flex items-center gap-1.5 px-1 text-xs text-slate-300 font-semibold shrink-0">
-            <Calendar className="w-4 h-4 text-cyan-400" />
-            <span className="hidden sm:inline">Schedule Date:</span>
-            <span className="sm:hidden">Date:</span>
+        {/* Date Selector & Notify Tide Turn Toggle */}
+        <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
+          {/* Notify Me on Tide Turn Toggle */}
+          <button
+            onClick={() => handleToggleNotifyTideTurn(!notifyOnTideTurn)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border shrink-0 ${
+              notifyOnTideTurn
+                ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.4)]'
+                : 'bg-slate-950/80 hover:bg-slate-800 text-slate-300 border-slate-700 hover:border-amber-500/40'
+            }`}
+            title="Toggle browser notification when tide turns from high to low or low to high"
+          >
+            {notifyOnTideTurn ? <BellRing className="w-3.5 h-3.5 text-slate-950 animate-bounce" /> : <Bell className="w-3.5 h-3.5 text-amber-400" />}
+            <span>Notify Tide Turn: {notifyOnTideTurn ? 'ON' : 'OFF'}</span>
+          </button>
+
+          {/* Date Selector for Future Scheduling */}
+          <div className="flex items-center justify-between sm:justify-start gap-2 bg-slate-950/80 p-1.5 rounded-xl border border-slate-700">
+            <div className="flex items-center gap-1.5 px-1 text-xs text-slate-300 font-semibold shrink-0">
+              <Calendar className="w-4 h-4 text-cyan-400" />
+              <span className="hidden sm:inline">Schedule Date:</span>
+              <span className="sm:hidden">Date:</span>
+            </div>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => {
+                if (e.target.value) onDateChange(e.target.value);
+              }}
+              className="bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs px-2 py-1.5 rounded-lg border border-slate-600 focus:outline-none focus:border-cyan-400 cursor-pointer min-w-0"
+            />
+            {!isToday && (
+              <button
+                onClick={() => onDateChange(todayIso)}
+                className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-2.5 py-1.5 rounded-lg text-[11px] transition-colors shrink-0"
+              >
+                Today
+              </button>
+            )}
           </div>
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => {
-              if (e.target.value) onDateChange(e.target.value);
-            }}
-            className="bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs px-2 py-1.5 rounded-lg border border-slate-600 focus:outline-none focus:border-cyan-400 cursor-pointer flex-1 sm:flex-initial min-w-0"
-          />
-          {!isToday && (
-            <button
-              onClick={() => onDateChange(todayIso)}
-              className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-2.5 py-1.5 rounded-lg text-[11px] transition-colors shrink-0"
-            >
-              Today
-            </button>
-          )}
         </div>
       </div>
+
+      {/* Toast Notification Banner */}
+      {tideTurnToast && (
+        <div className="mt-3 bg-gradient-to-r from-amber-950/90 via-slate-950/95 to-amber-950/90 border border-amber-500/60 p-3 rounded-xl shadow-2xl flex items-center justify-between gap-2 animate-fadeIn text-xs text-amber-200">
+          <div className="flex items-center gap-2">
+            <BellRing className="w-4 h-4 text-amber-400 animate-bounce shrink-0" />
+            <span><strong>Tide Turn Notification:</strong> {tideTurnToast}</span>
+          </div>
+          <button onClick={() => setTideTurnToast(null)} className="text-amber-400 hover:text-white font-bold p-1">✕</button>
+        </div>
+      )}
 
       {/* TIDE RELIABILITY INDEX & VARIANCE MONITOR */}
       <div className="mt-3 bg-gradient-to-r from-slate-950/95 via-slate-900/90 to-cyan-950/30 rounded-xl p-3 border border-cyan-500/30 shadow-lg">
