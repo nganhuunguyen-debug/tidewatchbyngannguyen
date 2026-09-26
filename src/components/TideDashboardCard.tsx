@@ -1,6 +1,11 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { TideEvent, FishSpeciesInfo } from '../types';
-import { ArrowUpRight, ArrowDownRight, Clock, Waves, Compass, Activity, Calendar, Fish, Sparkles, ShieldAlert, CheckCircle2, Sliders, Anchor, Wind } from 'lucide-react';
+import { 
+  ArrowUpRight, ArrowDownRight, Clock, Waves, Compass, Activity, 
+  Calendar, Fish, Sparkles, ShieldAlert, CheckCircle2, Sliders, Anchor, 
+  Wind, CloudRain, Cloud, Sun, CloudSun, CloudLightning, Flame, Moon 
+} from 'lucide-react';
+import { SolunarForecast, getActiveSolunarPeriodForTime } from '../services/solunarService';
 
 interface TideChartProps {
   currentHeightFt: number;
@@ -15,12 +20,17 @@ interface TideChartProps {
     windSpeedMph?: number;
     windGustMph?: number;
     windDirection?: string;
+    weatherCategory?: 'Rain' | 'Cloudy' | 'Clear' | 'Partly Cloudy' | 'Thunderstorm';
+    conditionSummary?: string;
+    precipitationProbability?: number;
+    cloudCover?: number;
   }[];
   stationName: string;
   selectedDate: string; // YYYY-MM-DD
   onDateChange: (newDate: string) => void;
   isToday: boolean;
   locationFishes: FishSpeciesInfo[];
+  solunar?: SolunarForecast;
 }
 
 export const TideDashboardCard: React.FC<TideChartProps> = ({
@@ -33,7 +43,8 @@ export const TideDashboardCard: React.FC<TideChartProps> = ({
   selectedDate,
   onDateChange,
   isToday,
-  locationFishes
+  locationFishes,
+  solunar
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -240,6 +251,62 @@ export const TideDashboardCard: React.FC<TideChartProps> = ({
   // Featured selected fish
   const featuredFish = allSpecies.find(f => f.id === selectedSpeciesId) || allSpecies[0];
 
+  // Weather condition determination for the currently inspected hour
+  const getWeatherDisplay = () => {
+    const cat = inspectedData.weatherCategory;
+    const precip = inspectedData.precipitationProbability ?? 0;
+    const cloud = inspectedData.cloudCover ?? 0;
+
+    if (cat === 'Thunderstorm' || (inspectedData.conditionSummary && inspectedData.conditionSummary.includes('Thunderstorm'))) {
+      return {
+        label: inspectedData.conditionSummary || `Thunderstorms (${Math.max(precip, 50)}% chance)`,
+        icon: <CloudLightning className="w-3.5 h-3.5 text-amber-400 shrink-0" />,
+        badgeClass: 'bg-amber-950/90 text-amber-200 border-amber-500/50',
+        textClass: 'text-amber-300'
+      };
+    }
+
+    if (cat === 'Rain' || precip >= 35) {
+      const chance = Math.max(precip, 40);
+      return {
+        label: `Rain: ${chance}% chance`,
+        icon: <CloudRain className="w-3.5 h-3.5 text-sky-400 shrink-0" />,
+        badgeClass: 'bg-sky-950/90 text-sky-200 border-sky-500/40',
+        textClass: 'text-sky-300'
+      };
+    }
+
+    if (cat === 'Cloudy' || cloud >= 60) {
+      return {
+        label: `Cloudy: ${cloud || 75}% coverage`,
+        icon: <Cloud className="w-3.5 h-3.5 text-slate-300 shrink-0" />,
+        badgeClass: 'bg-slate-800/90 text-slate-200 border-slate-600/50',
+        textClass: 'text-slate-300'
+      };
+    }
+
+    if (cat === 'Partly Cloudy' || (cloud >= 25 && cloud < 60)) {
+      return {
+        label: `Partly Cloudy: ${cloud}% clouds`,
+        icon: <CloudSun className="w-3.5 h-3.5 text-amber-300 shrink-0" />,
+        badgeClass: 'bg-blue-950/80 text-blue-200 border-blue-500/40',
+        textClass: 'text-blue-300'
+      };
+    }
+
+    return {
+      label: `Clear: ${cloud}% clouds (0% rain)`,
+      icon: <Sun className="w-3.5 h-3.5 text-amber-400 shrink-0" />,
+      badgeClass: 'bg-amber-950/60 text-amber-200 border-amber-500/40',
+      textClass: 'text-amber-300'
+    };
+  };
+
+  const weather = getWeatherDisplay();
+
+  // Active Solunar period for inspected timestamp
+  const activeSolunar = solunar ? getActiveSolunarPeriodForTime(inspectedData.timestamp, solunar.allPeriods) : null;
+
   return (
     <div className="bg-slate-900/90 backdrop-blur-md rounded-2xl border border-cyan-500/20 p-3 sm:p-5 shadow-2xl text-slate-100 flex flex-col justify-between overflow-hidden">
       {/* Top Banner with NOAA station + Date Picker */}
@@ -253,6 +320,13 @@ export const TideDashboardCard: React.FC<TideChartProps> = ({
             {!isToday && (
               <span className="text-[10px] uppercase font-bold text-amber-300 bg-amber-950/80 px-2 py-0.5 rounded border border-amber-600/50">
                 Future Forecast
+              </span>
+            )}
+            {solunar && (
+              <span className="hidden md:inline-flex items-center gap-1 text-[11px] font-bold text-violet-300 bg-violet-950/80 px-2 py-0.5 rounded border border-violet-700/50">
+                <span>{solunar.moonPhaseIcon}</span>
+                <span>{solunar.moonPhase}</span>
+                <span className="text-emerald-400 font-extrabold">• Solunar {solunar.fishingQualityScore}/100</span>
               </span>
             )}
           </div>
@@ -288,22 +362,37 @@ export const TideDashboardCard: React.FC<TideChartProps> = ({
       {/* 24-Hour Tidal Harmonic Curve Section (Moved to the Top) */}
       <div className="my-4 bg-slate-950/70 rounded-xl p-2.5 sm:p-4 border border-slate-800">
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400 px-1 mb-2">
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
             <span className="font-semibold text-slate-200">
               24-Hour Tidal Harmonic Curve ({new Date(selectedDate + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })})
             </span>
-            {inspectedData.windSpeedMph !== undefined && (
-              <span className="text-[11px] font-bold text-teal-300 bg-teal-950/80 border border-teal-500/40 px-2 py-0.5 rounded-md flex items-center gap-1 shadow-sm">
-                <Wind className="w-3.5 h-3.5 text-teal-400" />
-                <span>Wind at {inspectedData.hour}: {inspectedData.windSpeedMph} mph {inspectedData.windDirection}</span>
+            <div className="flex flex-col gap-1">
+              {inspectedData.windSpeedMph !== undefined && (
+                <span className="text-[11px] font-bold text-teal-300 bg-teal-950/80 border border-teal-500/40 px-2 py-0.5 rounded-md flex items-center gap-1 shadow-sm w-fit">
+                  <Wind className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+                  <span>Wind at {inspectedData.hour}: {inspectedData.windSpeedMph} mph {inspectedData.windDirection || 'NE'}</span>
+                </span>
+              )}
+              {/* Directly below Wind at 9 AM: 19 mph NW */}
+              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1.5 shadow-sm border w-fit ${weather.badgeClass}`}>
+                {weather.icon}
+                <span>{weather.label}</span>
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {activeSolunar && (
+              <span className="text-[11px] font-bold text-emerald-300 bg-emerald-950/90 border border-emerald-500/50 px-2.5 py-0.5 rounded-md flex items-center gap-1 animate-pulse">
+                <Flame className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span>{activeSolunar.name}</span>
               </span>
             )}
+            <span className="text-[11px] text-cyan-400 font-medium flex items-center gap-1">
+              <Sparkles className="w-3 h-3 text-cyan-400 shrink-0 animate-pulse" />
+              <span className="hidden sm:inline">Slide mouse, tap curve, or use scrubber — inspect Tide & Wind</span>
+              <span className="sm:hidden">Tap curve or drag scrubber below</span>
+            </span>
           </div>
-          <span className="text-[11px] text-cyan-400 font-medium flex items-center gap-1">
-            <Sparkles className="w-3 h-3 text-cyan-400 shrink-0 animate-pulse" />
-            <span className="hidden sm:inline">Slide mouse, tap curve, or use scrubber — inspect Tide Height & Wind</span>
-            <span className="sm:hidden">Tap curve or drag scrubber below</span>
-          </span>
         </div>
 
         {/* Side-by-Side Layout: Curve on Left, Information Panel on Right */}
@@ -532,7 +621,7 @@ export const TideDashboardCard: React.FC<TideChartProps> = ({
                 }}
                 className="w-full accent-cyan-400 h-2 bg-slate-700 rounded-lg cursor-pointer"
               />
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 shrink-0">
                 <span className="text-xs font-extrabold text-cyan-300 bg-cyan-950 px-2 py-0.5 rounded border border-cyan-700/60">
                   {inspectedData.hour}
                 </span>
@@ -542,6 +631,10 @@ export const TideDashboardCard: React.FC<TideChartProps> = ({
                     {inspectedData.windSpeedMph} mph
                   </span>
                 )}
+                <span className={`text-xs font-bold px-2 py-0.5 rounded border flex items-center gap-1 ${weather.badgeClass}`}>
+                  {weather.icon}
+                  <span>{weather.label}</span>
+                </span>
               </div>
             </div>
           </div>
@@ -564,12 +657,23 @@ export const TideDashboardCard: React.FC<TideChartProps> = ({
                   {inspectedData.windSpeedMph !== undefined && (
                     <div className="mt-1 flex items-center gap-1.5 text-xs font-bold text-teal-300">
                       <Wind className="w-3.5 h-3.5 text-teal-400 shrink-0" />
-                      <span>Wind: {inspectedData.windSpeedMph} mph {inspectedData.windDirection || 'NE'}</span>
+                      <span>Wind at {inspectedData.hour}: {inspectedData.windSpeedMph} mph {inspectedData.windDirection || 'NE'}</span>
                       {inspectedData.windGustMph && (
                         <span className="text-[10px] text-slate-400 font-normal">
                           (gusts {inspectedData.windGustMph} mph)
                         </span>
                       )}
+                    </div>
+                  )}
+                  {/* Weather Condition directly below Wind */}
+                  <div className="mt-1 flex items-center gap-1.5 text-xs font-semibold">
+                    {weather.icon}
+                    <span className={weather.textClass}>{weather.label}</span>
+                  </div>
+                  {activeSolunar && (
+                    <div className="mt-1.5 text-[11px] font-bold text-emerald-300 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-500/40 flex items-center gap-1">
+                      <Flame className="w-3.5 h-3.5 text-emerald-400 shrink-0 animate-pulse" />
+                      <span>{activeSolunar.name}</span>
                     </div>
                   )}
                 </div>
@@ -741,6 +845,9 @@ export const TideDashboardCard: React.FC<TideChartProps> = ({
                 Surface wind: {inspectedData.windSpeedMph} mph {inspectedData.windDirection}
               </span>
             )}
+            <span className={`block mt-0.5 font-medium ${weather.textClass}`}>
+              Sky: {weather.label}
+            </span>
           </div>
         </div>
 

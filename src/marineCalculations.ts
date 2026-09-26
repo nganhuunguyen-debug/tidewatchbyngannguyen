@@ -28,6 +28,10 @@ export function calculateTidesForCoordinates(
     windSpeedMph?: number;
     windGustMph?: number;
     windDirection?: string;
+    weatherCategory?: 'Rain' | 'Cloudy' | 'Clear' | 'Partly Cloudy' | 'Thunderstorm';
+    conditionSummary?: string;
+    precipitationProbability?: number;
+    cloudCover?: number;
   }[];
 } {
   // Semi-diurnal cycle period is approx 12.42 hours
@@ -78,6 +82,10 @@ export function calculateTidesForCoordinates(
     let windSpeedMph: number;
     let windGustMph: number;
     let windDirection: string;
+    let weatherCategory: 'Rain' | 'Cloudy' | 'Clear' | 'Partly Cloudy' | 'Thunderstorm';
+    let conditionSummary: string;
+    let precipitationProbability: number;
+    let cloudCover: number;
 
     const matchedLive = liveWindData && liveWindData.length > 0
       ? liveWindData.find(w => Math.abs(w.timestamp - t) <= 1800 * 1000)
@@ -87,6 +95,10 @@ export function calculateTidesForCoordinates(
       windSpeedMph = matchedLive.windSpeedMph;
       windGustMph = matchedLive.windGustMph;
       windDirection = matchedLive.windDirectionText;
+      weatherCategory = matchedLive.weatherCategory;
+      conditionSummary = matchedLive.conditionSummary;
+      precipitationProbability = matchedLive.precipitationProbability;
+      cloudCover = matchedLive.cloudCover;
     } else {
       // Fallback diurnal wind model
       const localHour = dateObj.getHours(); // 0 - 23
@@ -99,6 +111,25 @@ export function calculateTidesForCoordinates(
       const windDirections = ['WNW', 'NW', 'NNW', 'N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W'];
       const dirIdx = Math.floor((phaseSeed + localHour * 0.4) % windDirections.length);
       windDirection = windDirections[dirIdx];
+
+      // Realistic coastal weather fallback based on coordinates
+      const isRainyTime = (phaseSeed % 7 === 0 && localHour > 14 && localHour < 19);
+      if (isRainyTime) {
+        weatherCategory = 'Rain';
+        precipitationProbability = 65;
+        cloudCover = 85;
+        conditionSummary = 'Rain: 65% chance';
+      } else if (phaseSeed % 3 === 0) {
+        weatherCategory = 'Cloudy';
+        precipitationProbability = 15;
+        cloudCover = 75;
+        conditionSummary = 'Cloudy: 75% coverage';
+      } else {
+        weatherCategory = 'Clear';
+        precipitationProbability = 5;
+        cloudCover = 10;
+        conditionSummary = 'Clear: 10% clouds';
+      }
     }
 
     hourlyHeights.push({
@@ -108,7 +139,11 @@ export function calculateTidesForCoordinates(
       timestamp: t,
       windSpeedMph,
       windGustMph,
-      windDirection
+      windDirection,
+      weatherCategory,
+      conditionSummary,
+      precipitationProbability,
+      cloudCover
     });
   }
 

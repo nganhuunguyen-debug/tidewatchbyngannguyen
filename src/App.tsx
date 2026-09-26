@@ -6,7 +6,9 @@ import {
   LocationCoordinates 
 } from './marineCalculations';
 import { fetchLiveMarineWind, HourlyWindData } from './services/weatherService';
+import { calculateSolunarForecast } from './services/solunarService';
 import { TideDashboardCard } from './components/TideDashboardCard';
+import { SolunarActivityWidget } from './components/SolunarActivityWidget';
 import { FishingMap } from './components/FishingMap';
 import { 
   Waves, MapPin, Compass, RefreshCw 
@@ -52,6 +54,13 @@ export default function App() {
 
   // Calculate real-time continuous sinusoidal tide cycle with live NOAA meteorological wind data
   const tideData = calculateTidesForCoordinates(selectedLocation, calculationDate, liveWindData);
+
+  // Calculate Solunar activity forecast & Fishing Quality score based on moon phases and lunar transit position
+  const solunarData = calculateSolunarForecast(
+    calculationDate,
+    selectedLocation.lat,
+    selectedLocation.lng
+  );
 
   // Determine which fish species inhabit the currently picked location
   const getFishesForLocation = (): FishSpeciesInfo[] => {
@@ -182,9 +191,18 @@ export default function App() {
           onDateChange={(newDate) => setSelectedDate(newDate)}
           isToday={isViewingToday}
           locationFishes={locationFishes}
+          solunar={solunarData}
         />
 
-        {/* 2. Map & Interactive Location Picker */}
+        {/* 2. Solunar Activity Forecast Widget (Moon Phases, Lunar Transits, Fishing Quality Score) */}
+        <SolunarActivityWidget
+          solunar={solunarData}
+          inspectedTimestamp={calculationDate.getTime()}
+          currentTideTrend={tideData.currentTrend}
+          stationName={selectedLocation.label}
+        />
+
+        {/* 3. Map & Interactive Location Picker */}
         <FishingMap
           hotspots={FISHING_HOTSPOTS}
           selectedLocation={selectedLocation}
