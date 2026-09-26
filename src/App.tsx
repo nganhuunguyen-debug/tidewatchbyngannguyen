@@ -9,6 +9,7 @@ import {
 } from './marineCalculations';
 import { fetchLiveMarineWind } from './weatherService';
 import { TideDashboardCard } from './components/TideDashboardCard';
+import { MarinePoliceRadar } from './components/MarinePoliceRadar';
 import { SolunarActivityWidget } from './components/SolunarActivityWidget';
 import { FishingMap } from './components/FishingMap';
 import { 
@@ -180,7 +181,7 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="max-w-7xl w-full mx-auto px-2.5 sm:px-6 lg:px-8 py-4 sm:py-6 flex-1 space-y-4 sm:space-y-6 overflow-x-hidden">
-        {/* 1. Live NOAA Tidal Station with Interactive 24-Hour Harmonic Curve (Moved to Top) */}
+        {/* 1. Live NOAA Tidal Station with Interactive 24-Hour Harmonic Curve */}
         <TideDashboardCard
           currentHeightFt={tideData.currentHeightFt}
           currentTrend={tideData.currentTrend}
@@ -195,7 +196,10 @@ export default function App() {
           solunar={solunarData}
         />
 
-        {/* 2. Solunar Activity Forecast Widget (Moon Phases, Lunar Transits, Fishing Quality Score) */}
+        {/* 2. Marine Police Surroundings & VMRC Law Enforcement Advisory Monitor */}
+        <MarinePoliceRadar />
+
+        {/* 3. Solunar Activity Forecast Widget (Moon Phases, Lunar Transits, Fishing Quality Score) */}
         <SolunarActivityWidget
           solunar={solunarData}
           inspectedTimestamp={calculationDate.getTime()}
@@ -203,7 +207,7 @@ export default function App() {
           stationName={selectedLocation.label}
         />
 
-        {/* 3. Map & Interactive Location Picker */}
+        {/* 4. Map & Interactive Location Picker with Patrol Zones Overlay */}
         <FishingMap
           hotspots={FISHING_HOTSPOTS}
           selectedLocation={selectedLocation}
